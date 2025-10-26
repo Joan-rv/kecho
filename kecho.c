@@ -36,24 +36,26 @@ static int __init kecho_init(void)
 {
 	int ret;
 	if ((ret = alloc_chrdev_region(&dev, 0, 1, "kecho")) < 0) {
-		printk(KERN_ALERT "Failed to allocate device number\n");
+		pr_alert("Failed to allocate device number\n");
 		goto err_alloc;
 	}
 	cdev_init(&cdev, &fops);
 	if ((ret = cdev_add(&cdev, dev, 1)) < 0) {
-		printk(KERN_ALERT "Failed to add device\n");
+		pr_alert("Failed to add device\n");
 		goto err_add;
 	}
 	if (IS_ERR(class = class_create("kecho"))) {
 		ret = PTR_ERR(class);
+		pr_alert("Failed to create class\n");
 		goto err_class;
 	}
 	if (IS_ERR(device = device_create(class, NULL, dev, NULL, "echo"))) {
 		ret = PTR_ERR(device);
+		pr_alert("Failed to create device\n");
 		goto err_device;
 	}
 
-	printk(KERN_INFO "Loeaded kecho\n");
+	pr_info("Loeaded kecho\n");
 	return 0;
 
 err_device:
@@ -72,7 +74,7 @@ static void __exit kecho_exit(void)
 	class_destroy(class);
 	cdev_del(&cdev);
 	unregister_chrdev_region(dev, 1);
-	printk(KERN_INFO "Unloaded kecho\n");
+	pr_info("Unloaded kecho\n");
 }
 
 static int kecho_open(struct inode *inode, struct file *filp)
@@ -92,9 +94,12 @@ static ssize_t kecho_read(struct file *filp, char __user *buffer, size_t count,
 {
 	struct data_slice *data = filp->private_data;
 	if (!data)
-		return -ENODATA;
+		return 0;
+
 	size_t remaining = data->size - data->offset;
-	if (count < remaining) {
+	if (remaining == 0) {
+		return 0;
+	} else if (count < remaining) {
 		if (copy_to_user(buffer, data->buffer, count))
 			return -EFAULT;
 		data->offset += count;
@@ -102,7 +107,7 @@ static ssize_t kecho_read(struct file *filp, char __user *buffer, size_t count,
 	} else {
 		if (copy_to_user(buffer, data->buffer, remaining))
 			return -EFAULT;
-		data->offset = 0;
+		data->offset += remaining;
 		return remaining;
 	}
 }
@@ -111,8 +116,9 @@ static ssize_t kecho_write(struct file *filp, const char __user *buffer,
 			   size_t count, loff_t *offset)
 {
 	kfree(filp->private_data);
-	struct data_slice *data = filp->private_data =
+	filp->private_data =
 		kmalloc(sizeof(struct data_slice) + count, GFP_KERNEL);
+	struct data_slice *data = filp->private_data;
 	if (!filp->private_data)
 		return -ENOSPC;
 
