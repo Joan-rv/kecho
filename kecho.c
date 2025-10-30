@@ -115,10 +115,10 @@ static ssize_t kecho_read(struct file *filp, char __user *buffer, size_t count,
 static ssize_t kecho_write(struct file *filp, const char __user *buffer,
 			   size_t count, loff_t *offset)
 {
+	struct data_slice *data;
 	kfree(filp->private_data);
-	filp->private_data =
-		kmalloc(sizeof(struct data_slice) + count, GFP_KERNEL);
-	struct data_slice *data = filp->private_data;
+	data = kmalloc(struct_size(data, buffer, count), GFP_KERNEL);
+	filp->private_data = data;
 	if (!filp->private_data)
 		return -ENOSPC;
 
