@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/printk.h>
 #include <linux/cdev.h>
+#include <linux/vmalloc.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Joan Ripoll");
@@ -85,7 +86,7 @@ static int kecho_open(struct inode *inode, struct file *filp)
 
 static int kecho_release(struct inode *inode, struct file *filp)
 {
-	kfree(filp->private_data);
+	vfree(filp->private_data);
 	return 0;
 }
 
@@ -116,8 +117,8 @@ static ssize_t kecho_write(struct file *filp, const char __user *buffer,
 			   size_t count, loff_t *offset)
 {
 	struct data_slice *data;
-	kfree(filp->private_data);
-	data = kmalloc(struct_size(data, buffer, count), GFP_KERNEL);
+	vfree(filp->private_data);
+	data = vmalloc(struct_size(data, buffer, count));
 	filp->private_data = data;
 	if (!filp->private_data)
 		return -ENOSPC;
